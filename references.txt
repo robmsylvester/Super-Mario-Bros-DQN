@@ -1,0 +1,2 @@
+https://github.com/ppaquette/gym-super-mario
+https://deepmind.com/research/publications/playing-atari-deep-reinforcement-learning/
