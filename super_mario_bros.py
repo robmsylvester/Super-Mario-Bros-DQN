@@ -110,6 +110,9 @@ class SuperMarioBrosEnv(NesEnv):
 
     #This function has been heavily modified to make the reward involve more than just raw x distance
     #These data messages are defined in the lua file for super-mario-bros
+    
+    #TODO - need to edit LUA file to include star power rewards
+
     def _process_data_message(self, frame_number, data):
         # Format: data_<frame>#name_1:value_1|name_2:value_2|...
         if frame_number <= self.last_frame or self.info is None:
@@ -128,6 +131,16 @@ class SuperMarioBrosEnv(NesEnv):
             name = parts_2[0]
             value = int(parts_2[1])
 
+
+
+            """
+            The following rewards are unimplemented, by choice
+            self.additional_rewards = {
+                "finish_level" : 100.
+                "score" : 0.1 #per 100 points
+            }
+            """
+
             #detect if finished
             if 'is_finished' == name:
                 self.is_finished = bool(value)
@@ -139,16 +152,19 @@ class SuperMarioBrosEnv(NesEnv):
                 if value < 3:
                     #print("detected death")
                     self.reward += self.additional_rewards['death']
+                    #self.episode_reward += self.additional_rewards['death']
                 elif value > 3:
                     #print("new life detected")
                     self.reward += self.additional_rewards['extra_life']
+                    #self.episode_reward += self.additional_rewards['extra_life']
 
 
             #detect getting a coin
             elif 'coin' == name:
                 #print("coin detected")
-                self.info[name] = value
                 self.reward += self.additional_rewards['coin']
+                self.episode_reward += self.additional_rewards['coin']
+                self.info[name] = value
 
             #detect if we decremented by a mario second, in which case, apply the reward
             elif 'time' == name and value < self.info[name]:
@@ -157,10 +173,42 @@ class SuperMarioBrosEnv(NesEnv):
                 self.episode_reward += self.additional_rewards['time']
                 self.info[name] = value
 
+            #detect if distance incremented
             elif 'distance' == name:
                 self.reward += value - self.info[name] #change in x distance
                 self.episode_reward += value #total x distance
                 self.info[name] = value #total x distance
+            
+            #detect if mario ate a mushroom, ate a flower, or got hit without dying
+            elif 'player_status' == name:
+
+                #2 - fire mario. only achieved if eating flower while super mario
+                #1 - super mario. only achieved if eating mushroom while small mario
+                #0 - small mario. only achieved if hit while super mario or fire mario. if hit while small mario, death.
+
+                #ate a flower (assuming was still super mario. if eating flower while small mario, mario only becomes super mario so this value
+                #would be a value of 1, and be caught in the value == 1 checks)
+                if value == 2 and value > self.info[name]:
+                    self.reward += self.additional_rewards['flower']
+                    self.episode_reward += self.additional_rewards['flower']
+
+                #if currently super mario, only need to check if this is from eating mushroom. if hit while fire mario, goes back to small mario
+                elif value == 1 and value > self.info[name]:
+                    self.reward += self.additional_rewards['mushroom']
+                    self.episode_reward += self.additional_rewards['mushroom']
+
+                #if small value was sent, you got hit when you were big
+                elif value == 0 and self.info[name] == 1:
+                    self.reward += self.additional_rewards['mushroom_hit']
+                    self.episode_reward += self.additional_rewards['mushroom_hit']
+
+                #or worse, you got hit when you were a flower
+                elif value == 0 and self.info[name] == 2:
+                    self.reward += self.additional_rewards['flower_hit']
+                    self.episode_reward += self.additional_rewards['flower_hit']       
+
+                self.info[name] = value
+
             else:
                 self.info[name] = value
 
